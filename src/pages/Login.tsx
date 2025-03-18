@@ -1,14 +1,16 @@
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, Key } from "lucide-react";
+import { Shield, Key, User } from "lucide-react";
 import PasswordInput from "@/components/PasswordInput";
 import { useAuth } from "@/context/AuthContext";
 
 const Login: React.FC = () => {
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, hasRegistered } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -23,7 +25,7 @@ const Login: React.FC = () => {
     
     // Simulate loading to show animation
     setTimeout(() => {
-      const success = login(password);
+      const success = login(username, password, confirmPassword);
       if (success) {
         navigate("/home");
       }
@@ -42,20 +44,54 @@ const Login: React.FC = () => {
           </div>
           <h1 className="text-3xl font-semibold mb-2">Secure Vault</h1>
           <p className="text-muted-foreground">
-            Enter your master password to unlock your passwords
+            {hasRegistered 
+              ? "Enter your credentials to unlock your passwords" 
+              : "Create an account to get started"}
           </p>
         </div>
 
         <div className="glass p-6 rounded-2xl shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-6">
-            <PasswordInput
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Master password"
-              required
-              autoFocus
-              className="text-center"
-            />
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="username" className="block text-sm font-medium mb-2">
+                  Username
+                </label>
+                <div className="relative">
+                  <input
+                    id="username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white rounded-lg border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all duration-200"
+                    placeholder="Enter username"
+                    required
+                    autoFocus
+                  />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                </div>
+              </div>
+              
+              <PasswordInput
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                label="Master Password"
+                placeholder="Enter password"
+                required
+              />
+
+              {!hasRegistered && (
+                <PasswordInput
+                  id="confirmPassword"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  label="Confirm Password"
+                  placeholder="Confirm your password"
+                  required
+                />
+              )}
+            </div>
             
             <button
               type="submit"
@@ -67,17 +103,19 @@ const Login: React.FC = () => {
               ) : (
                 <>
                   <Key className="mr-2 h-5 w-5" />
-                  Unlock
+                  {hasRegistered ? "Unlock" : "Create Account"}
                 </>
               )}
             </button>
           </form>
           
-          <div className="mt-6 pt-4 border-t border-border">
-            <p className="text-xs text-center text-muted-foreground">
-              Demo hint: The password is "password123"
-            </p>
-          </div>
+          {hasRegistered && (
+            <div className="mt-6 pt-4 border-t border-border">
+              <p className="text-xs text-center text-muted-foreground">
+                Demo hint: The default username is "admin" and password is "password123"
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
