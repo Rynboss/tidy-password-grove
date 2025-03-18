@@ -43,7 +43,6 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
       <Link 
         to={`/view/${type}`}
         className={`block p-5 rounded-xl border transition-all duration-200 hover:shadow-md ${className}`}
-        style={{ animationDelay }}
       >
         <div className="flex justify-between items-center mb-4">
           <div className="bg-white p-2 rounded-lg">
