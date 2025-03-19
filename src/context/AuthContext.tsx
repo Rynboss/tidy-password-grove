@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +12,9 @@ interface AuthContextType {
   logout: () => Promise<void>;
   lastActivity: number | null;
   updateLastActivity: () => void;
+  sendOTP: (email: string) => Promise<boolean>;
+  verifyOTP: (email: string, token: string) => Promise<boolean>;
+  resendOTP: (email: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,7 +26,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [lastActivity, setLastActivity] = useState<number | null>(null);
   const { toast } = useToast();
 
-  // Listen for auth state changes
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
@@ -36,7 +37,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
-    // Check for existing session
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
@@ -63,7 +63,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
-        // Handle specific error codes
         if (error.message.includes("Email not confirmed")) {
           toast({
             title: "Email not confirmed",
@@ -126,7 +125,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      // If email confirmation is enabled, inform the user
       if (!data.session) {
         toast({
           title: "Verification required",
@@ -135,7 +133,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return true;
       }
 
-      // Otherwise, log them in directly
       setSession(data.session);
       setUser(data.user);
       setIsAuthenticated(true);
@@ -179,6 +176,114 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const sendOTP = async (email: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false,
+        }
+      });
+
+      if (error) {
+        toast({
+          title: "OTP sending failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        console.log("OTP sending error:", error.message);
+        return false;
+      }
+
+      toast({
+        title: "OTP sent",
+        description: "Please check your email for the OTP",
+      });
+      return true;
+    } catch (error: any) {
+      console.error("Unexpected OTP sending error:", error);
+      toast({
+        title: "OTP sending failed",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const resendOTP = async (email: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'otp',
+        email,
+      });
+
+      if (error) {
+        toast({
+          title: "OTP resending failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        console.log("OTP resending error:", error.message);
+        return false;
+      }
+
+      toast({
+        title: "OTP resent",
+        description: "Please check your email for the new OTP",
+      });
+      return true;
+    } catch (error: any) {
+      console.error("Unexpected OTP resending error:", error);
+      toast({
+        title: "OTP resending failed",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const verifyOTP = async (email: string, token: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'email',
+      });
+
+      if (error) {
+        toast({
+          title: "OTP verification failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        console.log("OTP verification error:", error.message);
+        return false;
+      }
+
+      setSession(data.session);
+      setUser(data.user);
+      setIsAuthenticated(true);
+      updateLastActivity();
+      
+      toast({
+        title: "Login successful",
+        description: "Welcome back!",
+      });
+      
+      return true;
+    } catch (error: any) {
+      console.error("Unexpected OTP verification error:", error);
+      toast({
+        title: "OTP verification failed",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
   const updateLastActivity = () => {
     setLastActivity(Date.now());
   };
@@ -194,6 +299,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         lastActivity,
         updateLastActivity,
+        sendOTP,
+        verifyOTP,
+        resendOTP,
       }}
     >
       {children}

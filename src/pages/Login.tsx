@@ -1,10 +1,12 @@
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, Key, User, AlertCircle } from "lucide-react";
+import { Shield, Key, User, AlertCircle, Mail, RefreshCw } from "lucide-react";
 import PasswordInput from "@/components/PasswordInput";
 import { useAuth } from "@/context/AuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState("");
@@ -13,7 +15,12 @@ const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const { login, signup, isAuthenticated } = useAuth();
+  const [useOTP, setUseOTP] = useState(false);
+  const [showOTPInput, setShowOTPInput] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [resendDisabled, setResendDisabled] = useState(false);
+  const [resendCounter, setResendCounter] = useState(0);
+  const { login, signup, isAuthenticated, sendOTP, verifyOTP, resendOTP } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -21,6 +28,28 @@ const Login: React.FC = () => {
       navigate("/home");
     }
   }, [isAuthenticated, navigate]);
+
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    let interval: number | null = null;
+    
+    if (resendDisabled && resendCounter > 0) {
+      interval = window.setInterval(() => {
+        setResendCounter((prev) => {
+          if (prev <= 1) {
+            setResendDisabled(false);
+            if (interval) clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [resendDisabled, resendCounter]);
 
   const validateInputs = () => {
     setErrorMessage(null);
@@ -30,12 +59,12 @@ const Login: React.FC = () => {
       return false;
     }
     
-    if (!password) {
+    if (!useOTP && !password) {
       setErrorMessage("Please enter your password");
       return false;
     }
     
-    if (!isLoginMode) {
+    if (!useOTP && !isLoginMode) {
       if (password.length < 6) {
         setErrorMessage("Password must be at least 6 characters long");
         return false;
@@ -62,15 +91,32 @@ const Login: React.FC = () => {
     try {
       let success = false;
       
-      if (isLoginMode) {
+      if (useOTP && showOTPInput) {
+        // Verify OTP
+        success = await verifyOTP(email, otp);
+      } else if (useOTP) {
+        // Send OTP
+        success = await sendOTP(email);
+        if (success) {
+          setShowOTPInput(true);
+          startResendCountdown();
+        }
+      } else if (isLoginMode) {
+        // Regular login
         console.log("Attempting login with:", email);
         success = await login(email, password);
       } else {
+        // Regular signup
         console.log("Attempting signup with:", email);
         success = await signup(email, password);
       }
       
-      if (success) {
+      if (success && !useOTP) {
+        navigate("/home");
+      } else if (success && useOTP && !showOTPInput) {
+        // OTP sent successfully, now wait for user to enter it
+      } else if (success && useOTP && showOTPInput) {
+        // OTP verified successfully
         navigate("/home");
       }
     } catch (error: any) {
@@ -81,8 +127,33 @@ const Login: React.FC = () => {
     }
   };
 
+  const handleResendOTP = async () => {
+    if (resendDisabled) return;
+    
+    setIsLoading(true);
+    const success = await resendOTP(email);
+    setIsLoading(false);
+    
+    if (success) {
+      startResendCountdown();
+    }
+  };
+
+  const startResendCountdown = () => {
+    setResendDisabled(true);
+    setResendCounter(60); // 60 seconds countdown
+  };
+
   const switchMode = () => {
     setIsLoginMode(!isLoginMode);
+    setUseOTP(false);
+    setShowOTPInput(false);
+    setErrorMessage(null);
+  };
+
+  const toggleOTP = () => {
+    setUseOTP(!useOTP);
+    setShowOTPInput(false);
     setErrorMessage(null);
   };
 
@@ -127,29 +198,78 @@ const Login: React.FC = () => {
                     placeholder="Enter your email"
                     required
                     autoFocus
+                    disabled={showOTPInput}
                   />
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 </div>
               </div>
               
-              <PasswordInput
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                label="Password"
-                placeholder="Enter password"
-                required
-              />
+              {showOTPInput ? (
+                <div className="space-y-2">
+                  <label htmlFor="otp" className="block text-sm font-medium mb-2">
+                    One-Time Password
+                  </label>
+                  <div className="flex flex-col items-center space-y-4">
+                    <InputOTP
+                      maxLength={6}
+                      value={otp}
+                      onChange={setOtp}
+                      className="w-full"
+                      containerClassName="justify-center"
+                    >
+                      <InputOTPGroup>
+                        <InputOTPSlot index={0} />
+                        <InputOTPSlot index={1} />
+                        <InputOTPSlot index={2} />
+                        <InputOTPSlot index={3} />
+                        <InputOTPSlot index={4} />
+                        <InputOTPSlot index={5} />
+                      </InputOTPGroup>
+                    </InputOTP>
+                    
+                    <div className="text-center">
+                      <Button 
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={resendDisabled || isLoading}
+                        onClick={handleResendOTP}
+                        className="text-sm"
+                      >
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        {resendDisabled 
+                          ? `Resend in ${resendCounter}s` 
+                          : "Resend OTP"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {!useOTP && (
+                    <>
+                      <PasswordInput
+                        id="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        label="Password"
+                        placeholder="Enter password"
+                        required
+                      />
 
-              {!isLoginMode && (
-                <PasswordInput
-                  id="confirmPassword"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  label="Confirm Password"
-                  placeholder="Confirm your password"
-                  required
-                />
+                      {!isLoginMode && (
+                        <PasswordInput
+                          id="confirmPassword"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          label="Confirm Password"
+                          placeholder="Confirm your password"
+                          required
+                        />
+                      )}
+                    </>
+                  )}
+                </>
               )}
             </div>
             
@@ -162,21 +282,43 @@ const Login: React.FC = () => {
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
               ) : (
                 <>
-                  <Key className="mr-2 h-5 w-5" />
-                  {isLoginMode ? "Sign In" : "Create Account"}
+                  {useOTP ? (
+                    <>
+                      <Mail className="mr-2 h-5 w-5" />
+                      {showOTPInput ? "Verify OTP" : "Send OTP"}
+                    </>
+                  ) : (
+                    <>
+                      <Key className="mr-2 h-5 w-5" />
+                      {isLoginMode ? "Sign In" : "Create Account"}
+                    </>
+                  )}
                 </>
               )}
             </button>
+            
+            {!showOTPInput && (
+              <div className="pt-4 border-t border-border text-center">
+                <button 
+                  type="button"
+                  onClick={toggleOTP}
+                  className="text-sm text-primary hover:underline mb-3 block w-full"
+                >
+                  {useOTP 
+                    ? "Use password instead" 
+                    : `Use one-time password (OTP) ${isLoginMode ? "to login" : "to register"}`}
+                </button>
+                
+                <button 
+                  type="button"
+                  onClick={switchMode} 
+                  className="text-sm text-primary hover:underline"
+                >
+                  {isLoginMode ? "Don't have an account? Create one" : "Already have an account? Sign in"}
+                </button>
+              </div>
+            )}
           </form>
-          
-          <div className="mt-6 pt-4 border-t border-border text-center">
-            <button 
-              onClick={switchMode} 
-              className="text-sm text-primary hover:underline"
-            >
-              {isLoginMode ? "Don't have an account? Create one" : "Already have an account? Sign in"}
-            </button>
-          </div>
         </div>
       </div>
     </div>
