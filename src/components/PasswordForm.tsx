@@ -18,11 +18,12 @@ const PasswordForm: React.FC = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [category, setCategory] = useState("others");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
   const { addPassword } = usePasswords();
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!service || !username || !password) {
@@ -34,21 +35,22 @@ const PasswordForm: React.FC = () => {
       return;
     }
     
-    addPassword({
-      id: crypto.randomUUID(),
-      service,
-      username,
-      password,
-      category,
-      createdAt: new Date().toISOString(),
-    });
+    setIsSubmitting(true);
     
-    toast({
-      title: "Password saved",
-      description: "Your password has been securely saved",
-    });
-    
-    navigate("/home");
+    try {
+      await addPassword({
+        service,
+        username,
+        password,
+        category,
+      });
+      
+      navigate("/home");
+    } catch (error) {
+      console.error("Error saving password:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -115,10 +117,17 @@ const PasswordForm: React.FC = () => {
       
       <button
         type="submit"
+        disabled={isSubmitting}
         className="w-full bg-primary text-primary-foreground py-3 px-4 rounded-lg font-medium transition-all duration-200 hover:bg-primary/90 active:scale-[0.98] flex items-center justify-center"
       >
-        <Check className="mr-2 h-5 w-5" />
-        Save Password
+        {isSubmitting ? (
+          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        ) : (
+          <>
+            <Check className="mr-2 h-5 w-5" />
+            Save Password
+          </>
+        )}
       </button>
     </form>
   );

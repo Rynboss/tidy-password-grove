@@ -1,113 +1,156 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Session, User } from "@supabase/supabase-js";
 
 interface AuthContextType {
   isAuthenticated: boolean;
-  login: (username: string, password: string, confirmPassword: string) => boolean;
-  register: (username: string, password: string, confirmPassword: string) => boolean;
-  logout: () => void;
+  user: User | null;
+  session: Session | null;
+  login: (email: string, password: string) => Promise<boolean>;
+  signup: (email: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
   lastActivity: number | null;
   updateLastActivity: () => void;
-  hasRegistered: boolean;
 }
-
-const DEFAULT_USERNAME = "admin";
-const DEFAULT_PASSWORD = "password123";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [hasRegistered, setHasRegistered] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [lastActivity, setLastActivity] = useState<number | null>(null);
   const { toast } = useToast();
 
+  // Listen for auth state changes
   useEffect(() => {
-    const authStatus = localStorage.getItem("isAuthenticated");
-    const registeredStatus = localStorage.getItem("hasRegistered");
-    
-    if (authStatus === "true") {
-      setIsAuthenticated(true);
-      updateLastActivity();
-    }
-    
-    if (registeredStatus === "true") {
-      setHasRegistered(true);
-    }
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setIsAuthenticated(!!session);
+      
+      if (session) {
+        updateLastActivity();
+      }
+    });
+
+    // Check for existing session
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+      setUser(session?.user ?? null);
+      setIsAuthenticated(!!session);
+      
+      if (session) {
+        updateLastActivity();
+      }
+    };
+
+    checkSession();
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
-  const register = (username: string, password: string, confirmPassword: string): boolean => {
-    if (!username.trim()) {
-      toast({
-        title: "Registration failed",
-        description: "Username is required",
-        variant: "destructive",
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
-      return false;
-    }
-    
-    if (password !== confirmPassword) {
-      toast({
-        title: "Registration failed",
-        description: "Passwords do not match",
-        variant: "destructive",
-      });
-      return false;
-    }
-    
-    if (password.length < 6) {
-      toast({
-        title: "Registration failed",
-        description: "Password must be at least 6 characters long",
-        variant: "destructive",
-      });
-      return false;
-    }
-    
-    localStorage.setItem("username", username);
-    localStorage.setItem("password", password);
-    localStorage.setItem("hasRegistered", "true");
-    setHasRegistered(true);
-    
-    toast({
-      title: "Registration successful",
-      description: "Your account has been created",
-    });
-    
-    return true;
-  };
 
-  const login = (username: string, password: string, confirmPassword: string): boolean => {
-    if (!hasRegistered) {
-      return register(username, password, confirmPassword);
-    }
-    
-    const storedUsername = localStorage.getItem("username") || DEFAULT_USERNAME;
-    const storedPassword = localStorage.getItem("password") || DEFAULT_PASSWORD;
-    
-    if (username === storedUsername && password === storedPassword) {
+      if (error) {
+        toast({
+          title: "Authentication failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      setSession(data.session);
+      setUser(data.user);
       setIsAuthenticated(true);
       updateLastActivity();
-      localStorage.setItem("isAuthenticated", "true");
       return true;
-    } else {
+    } catch (error: any) {
       toast({
         title: "Authentication failed",
-        description: "Invalid username or password",
+        description: error.message || "An unexpected error occurred",
         variant: "destructive",
       });
       return false;
     }
   };
 
-  const logout = () => {
-    setIsAuthenticated(false);
-    setLastActivity(null);
-    localStorage.removeItem("isAuthenticated");
-    toast({
-      title: "Logged out",
-      description: "You have been logged out successfully",
-    });
+  const signup = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) {
+        toast({
+          title: "Registration failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      // If email confirmation is enabled, inform the user
+      if (!data.session) {
+        toast({
+          title: "Verification required",
+          description: "Please check your email for a confirmation link",
+        });
+        return true;
+      }
+
+      // Otherwise, log them in directly
+      setSession(data.session);
+      setUser(data.user);
+      setIsAuthenticated(true);
+      updateLastActivity();
+      
+      toast({
+        title: "Registration successful",
+        description: "Your account has been created",
+      });
+      
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "Registration failed",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setSession(null);
+      setUser(null);
+      setIsAuthenticated(false);
+      setLastActivity(null);
+      
+      toast({
+        title: "Logged out",
+        description: "You have been logged out successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error logging out",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+    }
   };
 
   const updateLastActivity = () => {
@@ -118,12 +161,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{
         isAuthenticated,
+        user,
+        session,
         login,
-        register,
+        signup,
         logout,
         lastActivity,
         updateLastActivity,
-        hasRegistered,
       }}
     >
       {children}

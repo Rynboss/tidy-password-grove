@@ -8,7 +8,7 @@ import { Plus } from "lucide-react";
 
 const ViewPasswords: React.FC = () => {
   const { category } = useParams<{ category: string }>();
-  const { getPasswordsByCategory } = usePasswords();
+  const { getPasswordsByCategory, isLoading } = usePasswords();
   const navigate = useNavigate();
   const [passwords, setPasswords] = useState<any[]>([]);
 
@@ -36,7 +36,11 @@ const ViewPasswords: React.FC = () => {
   return (
     <Layout title={getCategoryTitle()} showBackButton>
       <div className="space-y-6">
-        {passwords.length === 0 ? (
+        {isLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : passwords.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-muted-foreground mb-6">
               No passwords found in this category

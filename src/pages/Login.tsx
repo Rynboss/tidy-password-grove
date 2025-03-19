@@ -6,12 +6,12 @@ import PasswordInput from "@/components/PasswordInput";
 import { useAuth } from "@/context/AuthContext";
 
 const Login: React.FC = () => {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [hasAccount, setHasAccount] = useState<boolean | null>(null);
-  const { login, isAuthenticated, hasRegistered } = useAuth();
+  const [isLoginMode, setIsLoginMode] = useState(true);
+  const { login, signup, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -20,56 +20,36 @@ const Login: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate loading to show animation
-    setTimeout(() => {
-      const success = login(username, password, confirmPassword);
+    try {
+      let success = false;
+      
+      if (isLoginMode) {
+        success = await login(email, password);
+      } else {
+        if (password !== confirmPassword) {
+          throw new Error("Passwords do not match");
+        }
+        
+        if (password.length < 6) {
+          throw new Error("Password must be at least 6 characters long");
+        }
+        
+        success = await signup(email, password);
+      }
+      
       if (success) {
         navigate("/home");
       }
+    } catch (error: any) {
+      // Error is handled in login/signup functions
+    } finally {
       setIsLoading(false);
-    }, 600);
+    }
   };
-
-  // Show account selection screen if user hasn't made a choice yet
-  if (hasAccount === null) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6 page-transition-enter">
-        <div className="w-full max-w-md">
-          <div className="mb-8 text-center">
-            <div className="flex justify-center mb-4">
-              <div className="p-3 bg-primary/10 rounded-full animate-pulse-slow">
-                <Shield className="w-12 h-12 text-primary" strokeWidth={1.5} />
-              </div>
-            </div>
-            <h1 className="text-3xl font-semibold mb-2">Welcome to Secure Vault</h1>
-            <p className="text-muted-foreground mb-6">
-              Your personal password manager
-            </p>
-            
-            <div className="space-y-4 mt-6">
-              <button
-                onClick={() => setHasAccount(true)}
-                className="w-full bg-primary text-primary-foreground py-3 px-4 rounded-lg font-medium transition-all duration-200 hover:bg-primary/90 active:scale-[0.98]"
-              >
-                I already have an account
-              </button>
-              
-              <button
-                onClick={() => setHasAccount(false)}
-                className="w-full bg-white border border-input text-foreground py-3 px-4 rounded-lg font-medium transition-all duration-200 hover:bg-accent hover:text-accent-foreground active:scale-[0.98]"
-              >
-                I need to create an account
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 page-transition-enter">
@@ -82,7 +62,7 @@ const Login: React.FC = () => {
           </div>
           <h1 className="text-3xl font-semibold mb-2">Secure Vault</h1>
           <p className="text-muted-foreground">
-            {hasAccount 
+            {isLoginMode 
               ? "Enter your credentials to unlock your passwords" 
               : "Create an account to get started"}
           </p>
@@ -92,17 +72,17 @@ const Login: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-4">
               <div>
-                <label htmlFor="username" className="block text-sm font-medium mb-2">
-                  Username
+                <label htmlFor="email" className="block text-sm font-medium mb-2">
+                  Email
                 </label>
                 <div className="relative">
                   <input
-                    id="username"
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 bg-white rounded-lg border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all duration-200"
-                    placeholder="Enter username"
+                    placeholder="Enter your email"
                     required
                     autoFocus
                   />
@@ -114,12 +94,12 @@ const Login: React.FC = () => {
                 id="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                label="Master Password"
+                label="Password"
                 placeholder="Enter password"
                 required
               />
 
-              {!hasAccount && (
+              {!isLoginMode && (
                 <PasswordInput
                   id="confirmPassword"
                   value={confirmPassword}
@@ -141,7 +121,7 @@ const Login: React.FC = () => {
               ) : (
                 <>
                   <Key className="mr-2 h-5 w-5" />
-                  {hasAccount ? "Sign In" : "Create Account"}
+                  {isLoginMode ? "Sign In" : "Create Account"}
                 </>
               )}
             </button>
@@ -149,17 +129,11 @@ const Login: React.FC = () => {
           
           <div className="mt-6 pt-4 border-t border-border text-center">
             <button 
-              onClick={() => setHasAccount(!hasAccount)} 
+              onClick={() => setIsLoginMode(!isLoginMode)} 
               className="text-sm text-primary hover:underline"
             >
-              {hasAccount ? "Don't have an account? Create one" : "Already have an account? Sign in"}
+              {isLoginMode ? "Don't have an account? Create one" : "Already have an account? Sign in"}
             </button>
-
-            {hasAccount && hasRegistered && (
-              <p className="text-xs text-center text-muted-foreground mt-4">
-                Demo hint: The default username is "admin" and password is "password123"
-              </p>
-            )}
           </div>
         </div>
       </div>
