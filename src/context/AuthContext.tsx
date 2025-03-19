@@ -214,7 +214,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const resendOTP = async (email: string): Promise<boolean> => {
     try {
       const { error } = await supabase.auth.resend({
-        type: 'otp',
+        type: 'signup',
         email,
       });
 
