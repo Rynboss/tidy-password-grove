@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, Key, User } from "lucide-react";
+import { Shield, Key, User, AlertCircle } from "lucide-react";
 import PasswordInput from "@/components/PasswordInput";
 import { useAuth } from "@/context/AuthContext";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState("");
@@ -11,6 +12,7 @@ const Login: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoginMode, setIsLoginMode] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { login, signup, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -20,24 +22,51 @@ const Login: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
+  const validateInputs = () => {
+    setErrorMessage(null);
+    
+    if (!email || !email.includes('@')) {
+      setErrorMessage("Please enter a valid email address");
+      return false;
+    }
+    
+    if (!password) {
+      setErrorMessage("Please enter your password");
+      return false;
+    }
+    
+    if (!isLoginMode) {
+      if (password.length < 6) {
+        setErrorMessage("Password must be at least 6 characters long");
+        return false;
+      }
+      
+      if (password !== confirmPassword) {
+        setErrorMessage("Passwords do not match");
+        return false;
+      }
+    }
+    
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateInputs()) {
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
       let success = false;
       
       if (isLoginMode) {
+        console.log("Attempting login with:", email);
         success = await login(email, password);
       } else {
-        if (password !== confirmPassword) {
-          throw new Error("Passwords do not match");
-        }
-        
-        if (password.length < 6) {
-          throw new Error("Password must be at least 6 characters long");
-        }
-        
+        console.log("Attempting signup with:", email);
         success = await signup(email, password);
       }
       
@@ -45,10 +74,16 @@ const Login: React.FC = () => {
         navigate("/home");
       }
     } catch (error: any) {
-      // Error is handled in login/signup functions
+      console.error("Form submission error:", error);
+      setErrorMessage(error.message || "An unexpected error occurred");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const switchMode = () => {
+    setIsLoginMode(!isLoginMode);
+    setErrorMessage(null);
   };
 
   return (
@@ -67,6 +102,13 @@ const Login: React.FC = () => {
               : "Create an account to get started"}
           </p>
         </div>
+
+        {errorMessage && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4 mr-2" />
+            <AlertDescription>{errorMessage}</AlertDescription>
+          </Alert>
+        )}
 
         <div className="glass p-6 rounded-2xl shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -129,7 +171,7 @@ const Login: React.FC = () => {
           
           <div className="mt-6 pt-4 border-t border-border text-center">
             <button 
-              onClick={() => setIsLoginMode(!isLoginMode)} 
+              onClick={switchMode} 
               className="text-sm text-primary hover:underline"
             >
               {isLoginMode ? "Don't have an account? Create one" : "Already have an account? Sign in"}

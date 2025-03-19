@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -62,11 +63,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
-        toast({
-          title: "Authentication failed",
-          description: error.message,
-          variant: "destructive",
-        });
+        // Handle specific error codes
+        if (error.message.includes("Email not confirmed")) {
+          toast({
+            title: "Email not confirmed",
+            description: "Please check your email for a confirmation link before logging in",
+            variant: "destructive",
+          });
+        } else if (error.message.includes("Invalid login credentials")) {
+          toast({
+            title: "Login failed",
+            description: "Invalid email or password. Please check your credentials and try again.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Authentication failed",
+            description: error.message,
+            variant: "destructive",
+          });
+        }
+        console.log("Login error:", error.message);
         return false;
       }
 
@@ -74,8 +91,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(data.user);
       setIsAuthenticated(true);
       updateLastActivity();
+      
+      toast({
+        title: "Login successful",
+        description: "Welcome back!",
+      });
+      
       return true;
     } catch (error: any) {
+      console.error("Unexpected login error:", error);
       toast({
         title: "Authentication failed",
         description: error.message || "An unexpected error occurred",
@@ -98,6 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           description: error.message,
           variant: "destructive",
         });
+        console.log("Signup error:", error.message);
         return false;
       }
 
@@ -123,6 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       return true;
     } catch (error: any) {
+      console.error("Unexpected signup error:", error);
       toast({
         title: "Registration failed",
         description: error.message || "An unexpected error occurred",
