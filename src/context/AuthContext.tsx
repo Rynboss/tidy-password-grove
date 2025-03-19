@@ -178,10 +178,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const sendOTP = async (email: string): Promise<boolean> => {
     try {
+      console.log("Attempting to send OTP to:", email);
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          shouldCreateUser: false,
+          shouldCreateUser: true,
+          emailRedirectTo: window.location.origin,
         }
       });
 
@@ -199,6 +201,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         title: "OTP sent",
         description: "Please check your email for the OTP",
       });
+      console.log("OTP sent successfully to:", email);
       return true;
     } catch (error: any) {
       console.error("Unexpected OTP sending error:", error);
@@ -213,6 +216,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resendOTP = async (email: string): Promise<boolean> => {
     try {
+      console.log("Attempting to resend OTP to:", email);
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email,
@@ -232,6 +236,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         title: "OTP resent",
         description: "Please check your email for the new OTP",
       });
+      console.log("OTP resent successfully to:", email);
       return true;
     } catch (error: any) {
       console.error("Unexpected OTP resending error:", error);
@@ -246,6 +251,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const verifyOTP = async (email: string, token: string): Promise<boolean> => {
     try {
+      console.log("Attempting to verify OTP for:", email);
       const { data, error } = await supabase.auth.verifyOtp({
         email,
         token,
@@ -271,6 +277,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         title: "Login successful",
         description: "Welcome back!",
       });
+      console.log("OTP verification successful for:", email);
       
       return true;
     } catch (error: any) {
